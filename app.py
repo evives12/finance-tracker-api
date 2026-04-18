@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
+from sqlalchemy import Transaction
+
 from config import Config
 from models import db, Transaction
+from datetime import date, datetime
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -27,7 +30,7 @@ def create_transaction():
             category=data['category'],
             description=data['description'],
             transaction_type=data['transaction_type'],
-            date=data['date']
+            date=datetime.strptime(data['date'], '%Y-%m-%d').date()
         )
 
         db.session.add(new_transaction)
@@ -41,11 +44,23 @@ def create_transaction():
 @app.route('/transactions', methods=['GET'])
 def get_transactions():
     category = request.args.get('category')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    query = Transaction.query
 
     if category:
-        transactions = Transaction.query.filter_by(category=category).all()
-    else:
-        transactions = Transaction.query.all()
+        query = query.filter_by(category=category)
+
+    if start_date:
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        query = query.filter(Transaction.date >= start_date)
+
+    if end_date:
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        query = query.filter(Transaction.date <= end_date)
+
+    transactions = query.all()
 
     results = []
 
@@ -56,7 +71,7 @@ def get_transactions():
             "category": transaction.category,
             "description": transaction.description,
             "transaction_type": transaction.transaction_type,
-            "date": transaction.date
+            "date": transaction.date.strftime('%Y-%m-%d')
         })
 
     return jsonify(results), 200
@@ -78,6 +93,33 @@ def get_summary():
         "total_expense": total_expense,
         "net_balance": total_income - total_expense
     }), 200
+
+@app.route('/transactions/<int:transaction_id>', methods=['DELETE'])
+def delete_transaction(transaction_id):
+    transaction = Transaction.query.get(transaction_id)
+
+    if not transaction:
+        return jsonify({"error": "Transaction not found"}), 404
+
+    db.session.delete(transaction)
+    db.session.commit()
+
+    return jsonify({"message": "Transaction deleted successfully"}), 200
+@app.route('/summary/category', methods=['GET'])
+def category_summary():
+    transactions = Transaction.query.all()
+    summary = {}
+
+    for transaction in transactions:
+        category = transaction.category
+
+        if category not in summary:
+            summary[category] = 0
+
+        summary[category] += transaction.amount
+
+    return jsonify(summary), 200
+
 
 
 if __name__ == "__main__":

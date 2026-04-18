@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from datetime import date
 
 db = SQLAlchemy()
 
@@ -10,4 +11,4 @@ class Transaction (db.Model):
     category = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(255), nullable=False)
     transaction_type = db.Column(db.String(20), nullable=False)
-    date = db.Column(db.String(20), nullable=False)
+    date = db.Column(db.Date, nullable=False)
